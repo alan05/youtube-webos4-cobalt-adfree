@@ -102,12 +102,12 @@ jobs:
         run: |
           set -euo pipefail
 
+          profile_file="packaging/profiles/$COBALT_PACKAGE_PROFILE.json"
+          test -s "$profile_file"
           version="$REQUESTED_VERSION"
           source="workflow input"
 
           if [[ -z "$version" ]]; then
-            profile_file="packaging/profiles/$COBALT_PACKAGE_PROFILE.json"
-            test -s "$profile_file"
             version="$(jq -r '.version' "$profile_file")"
             source="$profile_file"
           fi
