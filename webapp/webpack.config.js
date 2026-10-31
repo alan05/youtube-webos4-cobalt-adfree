@@ -20,6 +20,7 @@ function truthy(value) {
 module.exports = (env) => {
   cleanOutputDir();
   const enableDebugOverlay = truthy(process.env.YTAF_DEBUG || env.debug || env.ytafDebug);
+  const isKidsProfile = process.env.COBALT_PACKAGE_PROFILE === 'youtube-kids';
 
   return [
     {
@@ -89,7 +90,8 @@ module.exports = (env) => {
       },
       plugins: [
         new webpack.DefinePlugin({
-          __YTAF_DEBUG__: JSON.stringify(enableDebugOverlay)
+          __YTAF_DEBUG__: JSON.stringify(enableDebugOverlay),
+          __YTAF_KIDS_PROFILE__: JSON.stringify(isKidsProfile)
         }),
         new MiniCssExtractPlugin({
           chunkFilename: '[id].css'

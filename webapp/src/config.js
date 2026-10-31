@@ -1,3 +1,5 @@
+export const isKidsProfile =
+  typeof __YTAF_KIDS_PROFILE__ !== 'undefined' && __YTAF_KIDS_PROFILE__;
 const CONFIG_KEY = 'ytaf-configuration-cobalt-adfree-v2';
 const defaultConfig = {
   enableAdBlock: true,
@@ -13,7 +15,7 @@ const defaultConfig = {
   enableSponsorBlockPreview: false,
   enableSponsorBlockFiller: false,
   enableSponsorBlockHook: false,
-  enableAutoLogin: true,
+  enableAutoLogin: !isKidsProfile,
   enableReturnYouTubeDislike: true,
   enableShorts: true
 };
@@ -34,6 +36,7 @@ if (!localConfig || typeof localConfig !== 'object') {
 }
 
 export function configRead(key) {
+  if (isKidsProfile && key === 'enableAutoLogin') return false;
   if (localConfig[key] === undefined) {
     console.warn(
       'Populating key',
@@ -63,6 +66,7 @@ function dispatchConfigChanged(target, key, value) {
 }
 
 export function configWrite(key, value) {
+  if (isKidsProfile && key === 'enableAutoLogin') return false;
   console.info('Setting key', key, 'to', value);
   localConfig[key] = value;
   window.__ytafConfigState = localConfig;

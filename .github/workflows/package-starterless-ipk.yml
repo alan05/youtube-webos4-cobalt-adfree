@@ -167,7 +167,7 @@ jobs:
 
           while IFS= read -r changed; do
             case "$changed" in
-              packaging/*|scripts/package-starterless-cobalt.sh|.github/workflows/package-starterless-ipk.yml|README.md|docs/*|assets/icon.png|assets/largeIcon.png|repo.json|LICENSE*|NOTICE*|COPYING*)
+              packaging/*|webapp/*|scripts/package-starterless-cobalt.sh|.github/workflows/package-starterless-ipk.yml|README.md|docs/*|assets/icon.png|assets/largeIcon.png|repo.json|LICENSE*|NOTICE*|COPYING*)
                 ;;
               *)
                 echo "Cobalt source changed since build: $changed" >&2

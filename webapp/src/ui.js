@@ -5,7 +5,7 @@ import './navigation-checkbox.js';
 
 import './ui.css';
 
-import { configRead, configWrite } from './config.js';
+import { configRead, configWrite, isKidsProfile } from './config.js';
 import { checkboxTools } from './checkboxTools.js';
 import { choiceTools } from './choiceTools.js';
 import { text as languageText } from './languages/index.js';
@@ -275,14 +275,16 @@ export function userScriptStartUI() {
       callbackConfig('startupPage')
     )
   );
-  uiContainer.appendChild(
-    checkboxTools.add(
-      '__auto_login',
-      text('autoLogin'),
-      configRead('enableAutoLogin'),
-      callbackConfig('enableAutoLogin')
-    )
-  );
+  if (!isKidsProfile) {
+    uiContainer.appendChild(
+      checkboxTools.add(
+        '__auto_login',
+        text('autoLogin'),
+        configRead('enableAutoLogin'),
+        callbackConfig('enableAutoLogin')
+      )
+    );
+  }
   uiContainer.appendChild(
     checkboxTools.add(
       '__return_youtube_dislike',
