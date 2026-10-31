@@ -1,77 +1,72 @@
-# YouTube webOS Cobalt AdFree
+# YouTube Cobalt for LG webOS 4
 
-[![CI](https://github.com/RF1705/youtube-webos-cobalt-adfree/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RF1705/youtube-webos-cobalt-adfree/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/RF1705/youtube-webos-cobalt-adfree?label=latest%20release)](https://github.com/RF1705/youtube-webos-cobalt-adfree/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/RF1705/youtube-webos-cobalt-adfree/total?label=downloads)](https://github.com/RF1705/youtube-webos-cobalt-adfree/releases)
+Experimental, unofficial Cobalt-based YouTube clients for
+older LG webOS televisions.
 
-Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking and SponsorBlock support.
+This project builds upon
+[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtube-webos-cobalt-adfree).
 
-> This project is unofficial and is not affiliated with YouTube, Google, LG or webOS.
+It is not affiliated with Google, YouTube, LG or webOS.
 
-## Features
+## Application variants
 
-- YouTube for LG webOS TVs
-- Advertisement blocking
-- SponsorBlock support
-- Return YouTube Dislike support
-- Automatic account selection on startup
-- Playback speed support
-- Optional Shorts visibility
-- Optional autostart integration
-- Installable `.ipk` package
+| Variant | TV launcher name | Application ID |
+| --- | --- | --- |
+| Standard | YouTube | `com.alan05.youtube.cobalt.webos4` |
+| Kids | YouTube Kids | `com.alan05.youtubekids.cobalt.webos4` |
 
-The configuration screen can be opened with the **GREEN** button on the LG remote.
-While a video is playing, press **1** to decrease playback speed or **3** to increase it. Press **0** to toggle subtitles.
+Both variants share the same Cobalt runtime.
 
-## Installation
+The Kids variant is not yet validated for public release.
+Its separate profile, sign-in behaviour and parental controls
+require additional testing.
 
-Download the current `.ipk` from the GitHub releases page and install it using Homebrew Channel, webOS Device Manager, `ares-cli`, or the webOS app install service on rooted devices.
+## Verified hardware baseline
 
-The package uses the original `youtube.leanback.v4` application id to preserve YouTube sign-in and phone pairing compatibility. Installing it replaces the official YouTube application.
+- Television: LG 75UK6500PLA
+- Firmware: 05.50.70
+- webOS: 4.4.3-22
+- Cobalt source: 23.lts.6
+- Playback backend: experimental legacy LG ACB integration
 
-### Homebrew Channel repository
+A separately installed personal test build has demonstrated
+reported 2160p playback, SponsorBlock functionality and
+extended playback without sustained audio drift.
 
-Add the following custom repository in Homebrew Channel:
+This does not establish compatibility with all webOS 4 devices.
 
-```text
-https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/repo.json
-```
+## Known limitations
 
-Do not install this package alongside another Homebrew package using the same `youtube.leanback.v4` application id.
+- Seeking can take approximately 14–17 seconds.
+- Intermittent initial audio/video desynchronisation was observed.
+- Public application IDs have not yet passed device testing.
+- Kids profile restrictions are not yet verified.
 
-## Building
+## Build and release status
 
-Clone the repository:
+Development only. No verified public IPK is available yet.
 
-```sh
-git clone https://github.com/RF1705/youtube-webos-cobalt-adfree.git
-cd youtube-webos-cobalt-adfree
-```
+The packaging system requires an explicit application profile.
+Public releases must pass source, dependency, package integrity,
+installation and regression checks.
 
-The current Cobalt runtime is built directly for webOS and packaged without an LG Cobalt starter binary. Build helpers and platform patches are contained in `cobalt-platform/` and `scripts/`.
+## Upstream and attribution
 
-Relevant build scripts include:
+Based on RF1705's YouTube webOS Cobalt AdFree and its
+contributors. Original Git history is retained.
 
-- `scripts/build-starterless-cobalt-docker.sh` — builds Cobalt for webOS
-- `scripts/package-starterless-cobalt.sh` — creates the application package
-- `scripts/build-sdl-webos-docker.sh` — builds the SDL webOS platform dependency
+The original upstream README is preserved in
+[docs/UPSTREAM_README.md](docs/UPSTREAM_README.md).
 
-## Development
+Reusable legacy webOS Cobalt/Starboard engineering is planned
+for the separate `alan05/webos-cobalt-legacy` project.
 
-The web application sources are in `webapp/`.
+## Licensing
 
-Run the webapp tests with:
+Licensing and redistribution permissions for all project
+components and bundled runtime libraries are under review.
+The webapp package declares GPL-3.0; this declaration is
+not treated as a blanket licence for the entire repository.
 
-```sh
-cd webapp
-npm install
-npm test
-```
-
-## Compatibility
-
-Compatibility depends on the webOS version, TV platform, firmware and Cobalt/Starboard runtime. Please use the issue tracker for current device reports and compatibility problems.
-
-## License
-
-See the repository license files for the licensing terms of the project and its components.
+No public binary release should be published until the
+applicable permissions and notices are verified.
