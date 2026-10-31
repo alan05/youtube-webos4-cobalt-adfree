@@ -5,6 +5,7 @@
 #include <string>
 
 #include <starfish-media-pipeline/StarfishMediaAPIs.h>
+#include "starboard/webos/arm/legacy_acb_video_plane.h"
 
 #include "starboard/common/condition_variable.h"
 #include "starboard/common/mutex.h"
@@ -63,6 +64,7 @@ class StarfishVideoDecoder
 
   SbMediaVideoCodec codec_;
   scoped_ptr<StarfishMediaAPIs> media_api_;
+  LegacyAcbVideoPlane acb_;
   scoped_ptr<starboard::player::JobThread> decoder_thread_;
   DecoderStatusCB decoder_status_cb_;
   ErrorCB error_cb_;
@@ -70,7 +72,6 @@ class StarfishVideoDecoder
   Mutex pipeline_state_mutex_;
   ConditionVariable pipeline_state_condition_;
   bool pipeline_loaded_ = false;
-  bool exported_window_acquired_ = false;
   bool stream_ended_ = false;
   bool eos_output_ = false;
   int video_width_ = 0;

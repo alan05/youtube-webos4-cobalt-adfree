@@ -210,10 +210,8 @@ StarfishVideoDecoder::~StarfishVideoDecoder() {
     decoder_thread_.reset();
   }
   CancelPendingJobs();
-  if (exported_window_acquired_) {
-    ApplicationSdl::Get()->ReleaseExportedVideoWindow();
-    exported_window_acquired_ = false;
-  }
+  // Releases the ACB registration after the decoder pipeline is destroyed.
+  acb_.Close();
 }
 
 void StarfishVideoDecoder::Initialize(const DecoderStatusCB& decoder_status_cb,
@@ -223,10 +221,9 @@ void StarfishVideoDecoder::Initialize(const DecoderStatusCB& decoder_status_cb,
   SB_DCHECK(error_cb);
   decoder_status_cb_ = decoder_status_cb;
   error_cb_ = error_cb;
-  exported_window_acquired_ =
-      ApplicationSdl::Get()->AcquireExportedVideoWindow();
-  if (!exported_window_acquired_) {
-    ReportError("SDL did not create a webOS exported video window.");
+  const char* app_id = std::getenv("APPID");
+  if (!app_id || !*app_id || !acb_.Open(app_id)) {
+    ReportError("webOS 4 ACB video plane could not initialize.");
     return;
   }
   decoder_thread_.reset(new starboard::player::JobThread(
@@ -235,7 +232,7 @@ void StarfishVideoDecoder::Initialize(const DecoderStatusCB& decoder_status_cb,
 
 void StarfishVideoDecoder::SetPause(bool pause) {
   pause_requested_.store(pause);
-  ApplicationSdl::Get()->SetVideoPaused(pause);
+  if (pause) acb_.OnPause();
   if (decoder_thread_) {
     decoder_thread_->Schedule(std::bind(
         &StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread, this));
@@ -248,7 +245,7 @@ void StarfishVideoDecoder::SetPlaybackRate(double playback_rate) {
   }
   playback_rate_millionths_.store(
       static_cast<int>(playback_rate * 1000000.0));
-  ApplicationSdl::Get()->SetVideoPaused(playback_rate <= 0.0);
+  if (playback_rate <= 0.0) acb_.OnPause();
   if (decoder_thread_) {
     decoder_thread_->Schedule(std::bind(
         &StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread, this));
@@ -276,11 +273,12 @@ void StarfishVideoDecoder::InitializePipeline(
   const char* codec_name = CodecName(codec_);
   const char* app_id = std::getenv("APPID");
   if (!app_id || !*app_id) {
-    app_id = "youtube.leanback.v4";
+    ReportError("webOS application ID is missing.");
+    return;
   }
-  const std::string& window_id = ApplicationSdl::Get()->GetExportedWindowId();
-  if (window_id.empty()) {
-    ReportError("SDL did not create a webOS exported video window.");
+  // webOS 4 uses the media ID out-of-band; there is no SDL windowId.
+  if (!acb_.BindMediaId(media_api_->getMediaID())) {
+    ReportError("ACB rejected Starfish media ID.");
     return;
   }
 
@@ -289,7 +287,7 @@ void StarfishVideoDecoder::InitializePipeline(
       GetAdaptiveVideoCapabilities(codec_, sample_info);
   std::string payload = FormatString(
       "{\"args\":[{\"mediaTransportType\":\"BUFFERSTREAM\","
-      "\"option\":{\"windowId\":\"%s\",\"appId\":\"%s\","
+      "\"option\":{\"appId\":\"%s\","
       "\"queryPosition\":false,"
       "\"externalStreamingInfo\":{\"contents\":{\"codec\":{"
       "\"video\":\"%s\"},\"esInfo\":{\"pauseAtDecodeTime\":true,"
@@ -309,14 +307,15 @@ void StarfishVideoDecoder::InitializePipeline(
       "\"adaptiveResolution\":true,\"maxWidth\":%d,"
       "\"maxHeight\":%d,\"maxFrameRate\":%d},"
       "\"forcedPrerollOnPause\":true,\"seekMode\":\"keep-rate\"}}]}",
-      window_id.c_str(), app_id, codec_name, target_pts_ns, width, height,
+      app_id, codec_name, target_pts_ns, width, height,
       capabilities.width, capabilities.height, capabilities.frame_rate);
 
   SB_LOG(INFO) << "Loading Starfish hardware decoder for " << codec_name
                << " at " << width << "x" << height
                << " with adaptive maximum " << capabilities.width << "x"
                << capabilities.height << "@" << capabilities.frame_rate
-               << " using window " << window_id;
+                               << " using ACB video plane";
+
   media_api_->notifyForeground();
   if (!media_api_->Load(payload.c_str(), &StarfishVideoDecoder::PlayerCallback,
                         this)) {
@@ -324,6 +323,7 @@ void StarfishVideoDecoder::InitializePipeline(
     return;
   }
   pipeline_loaded_ = true;
+  acb_.AfterLoad(width, height);
   ApplyHdrInfo(sample_info.color_metadata);
   play_issued_ = false;
   pause_issued_ = false;
@@ -382,6 +382,7 @@ void StarfishVideoDecoder::FeedBuffer(
     // others refuse an early Play(). Retry until one startup Play is accepted,
     // but do not restart playback for every buffer after an intentional Pause.
     if (!startup_play_accepted_) {
+      acb_.OnFirstAcceptedBuffer();
       EnsurePlayingOnDecoderThread("first accepted buffer", false);
       startup_play_accepted_ = play_issued_;
     }
@@ -424,6 +425,7 @@ void StarfishVideoDecoder::EnsurePlayingOnDecoderThread(const char* reason,
   SB_LOG(INFO) << "Starfish Play() after " << reason << " -> "
                << (accepted ? "accepted" : "refused; will retry");
   if (accepted) {
+    acb_.OnPlaying();
     play_issued_ = true;
     pause_issued_ = false;
   }
@@ -484,6 +486,7 @@ void StarfishVideoDecoder::OnLoadCompletedOnDecoderThread() {
   // An early Play() can be accepted but remain queued.  Reissuing it at the
   // point at which the pipeline declares itself ready is harmless and fixes
   // that firmware behaviour.
+  acb_.OnLoadCompleted();
   EnsurePlayingOnDecoderThread("LOADCOMPLETED", true);
   ApplyPlaybackStateOnDecoderThread();
 }
@@ -555,6 +558,7 @@ void StarfishVideoDecoder::ResetOnDecoderThread() {
       }
       pipeline_state_mutex_.Release();
     }
+    acb_.OnUnload();
     media_api_.reset(new StarfishMediaAPIs());
     pipeline_loaded_ = false;
     video_width_ = 0;
@@ -599,6 +603,9 @@ void StarfishVideoDecoder::HandlePlayerEvent(int type,
   }
   if (reset_in_progress_.load()) {
     return;
+  }
+  if (type == PF_EVENT_TYPE_STR_VIDEO_INFO) {
+    acb_.OnVideoInfo(str_value);
   }
   if (type == PF_EVENT_TYPE_FRAMEREADY) {
     const SbTime frame_time = static_cast<SbTime>(num_value / 1000);

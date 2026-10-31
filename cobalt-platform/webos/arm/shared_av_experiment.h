@@ -17,7 +17,7 @@ namespace webos {
 // temporary TV marker used by earlier diagnostic packages.
 // 1 = H.264 SDR, 2 = VP9/AV1 UHD SDR, 3 = VP9/AV1 UHD HDR (default).
 inline int ParseSharedAvBackendMode(const char* value) {
-  if (!value) return 3;
+  if (!value) return 0;  // webOS 4 default: legacy ACB decoder.
   if (std::strcmp(value, "0") == 0) return 0;
   if (std::strcmp(value, "1") == 0) return 1;
   if (std::strcmp(value, "2") == 0) return 2;
@@ -32,7 +32,7 @@ inline int ReadConfiguredSharedAvBackendMode() {
 
   FILE* marker = std::fopen("/tmp/ytaf-shared-av.enable", "r");
   if (!marker) {
-    return 3;
+    return 0;  // Disable shared backend by default for webOS 4.
   }
   const int marker_value = std::fgetc(marker);
   std::fclose(marker);
