@@ -167,7 +167,7 @@ jobs:
 
           while IFS= read -r changed; do
             case "$changed" in
-              packaging/*|webapp/*|scripts/package-starterless-cobalt.sh|.github/workflows/package-starterless-ipk.yml|README.md|docs/*|assets/icon.png|assets/largeIcon.png|repo.json|LICENSE*|NOTICE*|COPYING*)
+              packaging/*|webapp/*|scripts/package-starterless-cobalt.sh|scripts/verify-ipk-profile.py|.github/workflows/package-starterless-ipk.yml|README.md|docs/*|assets/icon.png|assets/largeIcon.png|repo.json|LICENSE*|NOTICE*|COPYING*)
                 ;;
               *)
                 echo "Cobalt source changed since build: $changed" >&2
@@ -259,6 +259,16 @@ jobs:
           echo "package_path=$package_path" >> "$GITHUB_OUTPUT"
           echo "package_name=$(basename "$package_path")" >> "$GITHUB_OUTPUT"
 
+      - name: Verify packaged application
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-ipk-profile.py \
+            --profile "$COBALT_PACKAGE_PROFILE" \
+            --ipk "${{ steps.package.outputs.package_path }}" \
+            --version "${{ steps.version.outputs.version }}" \
+            --cobalt "${{ steps.runtime.outputs.runtime_dir }}/cobalt" \
+            --webapp-dir webapp/output
       - name: Write package metadata
         shell: bash
         run: |
