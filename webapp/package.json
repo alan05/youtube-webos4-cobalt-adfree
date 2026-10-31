@@ -1,7 +1,7 @@
 {
   "name": "youtube-webos-cobalt-adfree-webapp",
   "version": "0.3.1",
-  "description": "Injected adblock and SponsorBlock web app for youtube-webos-cobalt-adfree",
+  "description": "Ad blocking and SponsorBlock for Cobalt on LG webOS 4",
   "main": "index.js",
   "scripts": {
     "build": "webpack",
@@ -10,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/RF1705/youtube-webos-cobalt-adfree.git"
+    "url": "git+https://github.com/alan05/youtube-webos4-cobalt-adfree.git"
   },
   "author": "",
   "license": "GPL-3.0",
   "bugs": {
-    "url": "https://github.com/RF1705/youtube-webos-cobalt-adfree/issues"
+    "url": "https://github.com/alan05/youtube-webos4-cobalt-adfree/issues"
   },
-  "homepage": "https://github.com/RF1705/youtube-webos-cobalt-adfree#readme",
+  "homepage": "https://github.com/alan05/youtube-webos4-cobalt-adfree#readme",
   "dependencies": {
     "@babel/runtime": "^7.29.7",
     "@babel/runtime-corejs3": "^7.29.7",

@@ -6,8 +6,46 @@ build_dir="${COBALT_BUILD_DIR:-$repo_root/workdir/cobalt-23.lts.6/out/webos-arm-
 output_dir="${COBALT_PACKAGE_OUTPUT_DIR:-$repo_root/output}"
 runtime_dir="${COBALT_RUNTIME_DIR:-$repo_root/starterless-cobalt/lib}"
 webapp_output="${WEBAPP_OUTPUT_DIR:-$repo_root/webapp/output}"
-package_id="$(jq -r '.id' "$repo_root/starterless-cobalt/appinfo.json")"
-package_version="$(jq -r '.version' "$repo_root/starterless-cobalt/appinfo.json")"
+profile="${COBALT_PACKAGE_PROFILE:-}"
+
+case "$profile" in
+  youtube)
+    expected_id="com.alan05.youtube.cobalt.webos4"
+    expected_title="YouTube"
+    icon_dir="$repo_root/assets"
+    ;;
+  youtube-kids)
+    expected_id="com.alan05.youtubekids.cobalt.webos4"
+    expected_title="YouTube Kids"
+    icon_dir="$repo_root/packaging/icons/youtube-kids"
+    ;;
+  *)
+    echo "Set COBALT_PACKAGE_PROFILE=youtube or youtube-kids" >&2
+    exit 2
+    ;;
+esac
+
+manifest="$repo_root/packaging/profiles/$profile.json"
+
+if [[ ! -s "$manifest" ]] || ! jq -e \
+  --arg id "$expected_id" \
+  --arg title "$expected_title" \
+  '(.id == $id) and (.title == $title) and
+   (.type == "native") and (.main == "cobalt") and
+   (.icon == "icon.png") and (.largeIcon == "largeIcon.png")' \
+  "$manifest" >/dev/null; then
+  echo "Invalid or missing packaging profile: $profile" >&2
+  exit 2
+fi
+
+if [[ ! -s "$icon_dir/icon.png" ||
+      ! -s "$icon_dir/largeIcon.png" ]]; then
+  echo "Missing icons for profile: $profile" >&2
+  exit 2
+fi
+
+package_id="$(jq -r '.id' "$manifest")"
+package_version="$(jq -r '.version' "$manifest")"
 ares_package="$(command -v ares-package || true)"
 
 if [[ -z "$ares_package" && -x "$repo_root/node_modules/.bin/ares-package" ]]; then
@@ -54,7 +92,7 @@ fi
 package_root="$(mktemp -d "${TMPDIR:-/tmp}/cobalt-starterless-package.XXXXXX")"
 trap 'rm -rf "$package_root"' EXIT
 
-cp "$repo_root/starterless-cobalt/appinfo.json" "$package_root/appinfo.json"
+cp "$manifest" "$package_root/appinfo.json"
 cp "$build_dir/cobalt" "$package_root/cobalt"
 cp -R "$build_dir/content" "$package_root/content"
 
@@ -96,8 +134,13 @@ fi
 mkdir -p "$package_root/lib"
 cp "$runtime_dir/libstdc++.so.6" "$package_root/lib/libstdc++.so.6"
 cp "$runtime_dir/libgcc_s.so.1" "$package_root/lib/libgcc_s.so.1"
-cp "$repo_root/assets/icon.png" "$package_root/icon.png"
-cp "$repo_root/assets/largeIcon.png" "$package_root/largeIcon.png"
+if [[ ! -s "$runtime_dir/libatomic.so.1" ]]; then
+  echo "Missing ARM libatomic.so.1 runtime dependency" >&2
+  exit 4
+fi
+cp "$runtime_dir/libatomic.so.1" "$package_root/lib/libatomic.so.1"
+cp "$icon_dir/icon.png" "$package_root/icon.png"
+cp "$icon_dir/largeIcon.png" "$package_root/largeIcon.png"
 chmod +x "$package_root/cobalt"
 
 # Final guard on the exact package tree, not only the source/output directories.

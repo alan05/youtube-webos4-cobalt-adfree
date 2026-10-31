@@ -1,0 +1,17 @@
+{
+  "id": "com.alan05.youtubekids.cobalt.webos4",
+  "version": "2.0.2",
+  "vendor": "alan05",
+  "type": "native",
+  "main": "cobalt",
+  "title": "YouTube Kids",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#173f5f",
+  "spinnerOnLaunch": false,
+  "transparent": true,
+  "handlesRelaunch": true,
+  "nativeLifeCycleInterfaceVersion": 2,
+  "requiredMemory": 512,
+  "appDescription": "Unofficial Cobalt YouTube Kids for LG webOS 4"
+}

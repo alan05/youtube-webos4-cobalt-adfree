@@ -3,6 +3,13 @@ name: Package starterless Cobalt IPK
 on:
   workflow_dispatch:
     inputs:
+      profile:
+        description: Application profile
+        required: true
+        type: choice
+        options:
+          - youtube
+          - youtube-kids
       cobalt_run_id:
         description: Successful Build starterless Cobalt workflow run ID
         required: true
@@ -26,6 +33,7 @@ jobs:
     env:
       COBALT_RUN_ID: ${{ inputs.cobalt_run_id }}
       REQUESTED_VERSION: ${{ inputs.version }}
+      COBALT_PACKAGE_PROFILE: ${{ inputs.profile }}
       SDK_TAG: webos-a38c582
 
     steps:
@@ -86,7 +94,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ github.ref }}
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Resolve package version
         id: version
@@ -98,8 +106,10 @@ jobs:
           source="workflow input"
 
           if [[ -z "$version" ]]; then
-            version="$(jq -r '.version' starterless-cobalt/appinfo.json)"
-            source="starterless-cobalt/appinfo.json"
+            profile_file="packaging/profiles/$COBALT_PACKAGE_PROFILE.json"
+            test -s "$profile_file"
+            version="$(jq -r '.version' "$profile_file")"
+            source="$profile_file"
           fi
 
           version="${version#v}"
@@ -111,8 +121,8 @@ jobs:
 
           if [[ -n "$REQUESTED_VERSION" ]]; then
             jq --arg version "$version" '.version = $version' \
-              starterless-cobalt/appinfo.json > starterless-cobalt/appinfo.json.tmp
-            mv starterless-cobalt/appinfo.json.tmp starterless-cobalt/appinfo.json
+              "$profile_file" > "$profile_file.tmp"
+            mv "$profile_file.tmp" "$profile_file"
           fi
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -120,17 +130,53 @@ jobs:
           echo "Package version: $version ($source)"
 
       - name: Validate packaging source
+        env:
+          COBALT_SOURCE_SHA: ${{ steps.cobalt.outputs.source_sha }}
         shell: bash
         run: |
           set -euo pipefail
           test -f scripts/package-starterless-cobalt.sh
           test -f scripts/normalize-ipk-ownership.py
           test -f scripts/verify-ipk-container.py
-          test -f starterless-cobalt/appinfo.json
+          profile_file="packaging/profiles/$COBALT_PACKAGE_PROFILE.json"
+          test -s "$profile_file"
           test -s cobalt-platform/webos/system_fonts/fonts.xml
-          test -f assets/icon.png
-          test -f assets/largeIcon.png
-          test "$(jq -r '.version' starterless-cobalt/appinfo.json)" = "${{ steps.version.outputs.version }}"
+          case "$COBALT_PACKAGE_PROFILE" in
+            youtube) icon_dir="assets" ;;
+            youtube-kids) icon_dir="packaging/icons/youtube-kids" ;;
+            *) echo "Invalid package profile" >&2; exit 2 ;;
+          esac
+          test -s "$icon_dir/icon.png"
+          test -s "$icon_dir/largeIcon.png"
+          test "$(jq -r '.version' "$profile_file")" = "${{ steps.version.outputs.version }}"
+          source_sha="$COBALT_SOURCE_SHA"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "Invalid Cobalt source SHA" >&2
+            exit 3
+          }
+
+          git cat-file -e "$source_sha^{commit}" || {
+            echo "Cobalt source commit unavailable" >&2
+            exit 3
+          }
+
+          git merge-base --is-ancestor "$source_sha" HEAD || {
+            echo "Cobalt build is not an ancestor of this package" >&2
+            exit 3
+          }
+
+          while IFS= read -r changed; do
+            case "$changed" in
+              packaging/*|scripts/package-starterless-cobalt.sh|.github/workflows/package-starterless-ipk.yml|README.md|docs/*|assets/icon.png|assets/largeIcon.png|repo.json|LICENSE*|NOTICE*|COPYING*)
+                ;;
+              *)
+                echo "Cobalt source changed since build: $changed" >&2
+                exit 3
+                ;;
+            esac
+          done < <(git diff --name-only --no-renames "$source_sha" HEAD)
+
+          echo "Cobalt source compatibility verified."
           echo "Packaging SHA: $(git rev-parse HEAD)"
           echo "Package version: ${{ steps.version.outputs.version }}"
           echo "Runtime source ref: ${{ steps.cobalt.outputs.source_ref }}"
@@ -180,16 +226,19 @@ jobs:
           sdk_extract="$RUNNER_TEMP/webos-sdk"
           runtime_libs="$GITHUB_WORKSPACE/starterless-cobalt/lib"
           mkdir -p "$sdk_download" "$sdk_extract" "$runtime_libs"
-          rm -f "$runtime_libs/libstdc++.so.6" "$runtime_libs/libgcc_s.so.1"
+          rm -f "$runtime_libs/libstdc++.so.6" "$runtime_libs/libgcc_s.so.1" "$runtime_libs/libatomic.so.1"
           gh release download "$SDK_TAG" --repo openlgtv/buildroot-nc4 --pattern 'arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz' --dir "$sdk_download" --clobber
           tar -xzf "$sdk_download/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz" -C "$sdk_extract"
           sysroot="$sdk_extract/arm-webos-linux-gnueabi_sdk-buildroot/arm-webos-linux-gnueabi/sysroot"
           libstdcpp_link="$(find "$sysroot" -name 'libstdc++.so.6' -print -quit)"
           libgcc_link="$(find "$sysroot" -name 'libgcc_s.so.1' -print -quit)"
+          libatomic_link="$(find "$sysroot" -name 'libatomic.so.1' -print -quit)"
           test -e "$libstdcpp_link"
           test -e "$libgcc_link"
+          test -e "$libatomic_link"
           cp -L "$libstdcpp_link" "$runtime_libs/libstdc++.so.6"
           cp -L "$libgcc_link" "$runtime_libs/libgcc_s.so.1"
+          cp -L "$libatomic_link" "$runtime_libs/libatomic.so.1"
 
       - name: Package IPK
         id: package
@@ -225,6 +274,7 @@ jobs:
           package_ref=$GITHUB_REF_NAME
           package_sha=$(git rev-parse HEAD)
           package_version=${{ steps.version.outputs.version }}
+          package_profile=$COBALT_PACKAGE_PROFILE
           package_version_source=${{ steps.version.outputs.source }}
           package=${{ steps.package.outputs.package_name }}
           EOF
@@ -241,7 +291,7 @@ jobs:
       - name: Upload IPK
         uses: actions/upload-artifact@v4
         with:
-          name: ipk-${{ steps.version.outputs.version }}-from-run-${{ inputs.cobalt_run_id }}
+          name: ipk-${{ inputs.profile }}-${{ steps.version.outputs.version }}-from-run-${{ inputs.cobalt_run_id }}
           path: |
             ${{ steps.package.outputs.package_path }}
             ${{ steps.package.outputs.package_path }}.sha256
